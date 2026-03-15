@@ -20,6 +20,8 @@ Metadata:
           - GamingUDPTrafficPortEnd
           - GitHubRepo
           - FrontEndVersion
+          - ManagementDomain
+          - ManagementCertificateArn
       - Label:
           default: AWS Configuration
         Parameters:
@@ -71,6 +73,10 @@ Metadata:
         default: GitHub repository in owner/repo format (e.g. aws-samples/personal-game-server-manager)
       FrontEndVersion:
         default: Bump this value to pull fresh frontend files from GitHub on stack update
+      ManagementDomain:
+        default: Custom domain for the management UI (e.g. admin.example.com). Leave blank to use the CloudFront URL.
+      ManagementCertificateArn:
+        default: ACM certificate ARN (must be in us-east-1) for the custom management domain
               
 Parameters:
   GameServer:
@@ -89,6 +95,14 @@ Parameters:
     Description: Bump this value to pull fresh frontend and lambda files from GitHub on stack update.
     Type: String
     Default: '1'
+  ManagementDomain:
+    Description: Custom domain for the management UI (e.g. admin.example.com). Leave blank to use the CloudFront URL.
+    Type: String
+    Default: ''
+  ManagementCertificateArn:
+    Description: ACM certificate ARN in us-east-1 for the custom management domain. Required if ManagementDomain is set.
+    Type: String
+    Default: ''
   KeyName:
     Description: >-
       This is required so you can access the server.  If there is no option to
@@ -242,6 +256,9 @@ Conditions:
     - !Equals
       - !Ref GamingUDPTrafficPortStart
       - ''
+
+Conditions:
+  HasManagementDomain: !Not [!Equals [!Ref ManagementDomain, '']]
 
 Resources:
   mcEC2Instance:
@@ -843,16 +860,25 @@ Resources:
       AllowedOAuthScopes: 
         - openid
         - aws.cognito.signin.user.admin
-      CallbackURLs: 
-        - !Sub https://${mcCloudFront.DomainName}/signed_in.html     
-      DefaultRedirectURI: !Sub https://${mcCloudFront.DomainName}/signed_in.html
-      ExplicitAuthFlows: 
+      CallbackURLs:
+        - !If
+          - HasManagementDomain
+          - !Sub https://${ManagementDomain}/signed_in.html
+          - !Sub https://${mcCloudFront.DomainName}/signed_in.html
+      DefaultRedirectURI: !If
+        - HasManagementDomain
+        - !Sub https://${ManagementDomain}/signed_in.html
+        - !Sub https://${mcCloudFront.DomainName}/signed_in.html
+      ExplicitAuthFlows:
         - ALLOW_REFRESH_TOKEN_AUTH
         - ALLOW_USER_SRP_AUTH
         - ALLOW_CUSTOM_AUTH
       GenerateSecret: false
-      LogoutURLs: 
-        - !Sub https://${mcCloudFront.DomainName}/logout.html
+      LogoutURLs:
+        - !If
+          - HasManagementDomain
+          - !Sub https://${ManagementDomain}/logout.html
+          - !Sub https://${mcCloudFront.DomainName}/logout.html
       PreventUserExistenceErrors: ENABLED
       SupportedIdentityProviders: 
         - COGNITO
@@ -1439,7 +1465,11 @@ Resources:
     Type: AWS::CloudFront::Distribution
     DependsOn: mcCopyFrontEndFiles
     Properties: 
-      DistributionConfig: 
+      DistributionConfig:
+        Aliases: !If
+          - HasManagementDomain
+          - - !Ref ManagementDomain
+          - !Ref 'AWS::NoValue'
         Comment: Gaming server control centre
         DefaultCacheBehavior: 
           AllowedMethods: 
@@ -1463,9 +1493,23 @@ Resources:
               S3OriginConfig: 
                 OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${mcOriginAccessId}
         PriceClass: PriceClass_100
-        ViewerCertificate: 
-            CloudFrontDefaultCertificate: True
+        ViewerCertificate: !If
+          - HasManagementDomain
+          - AcmCertificateArn: !Ref ManagementCertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: True
 
+  mcManagementDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: HasManagementDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref ManagementDomain
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt mcCloudFront.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
 
   mcStartStopLambdaPermissionGetInfo:
     Type: AWS::Lambda::Permission
@@ -1828,7 +1872,10 @@ Resources:
       ServiceToken: !GetAtt mcUpdateConfigLambda.Arn
       configfile: js/config.js
       S3Bucket: !Ref mcS3Bucket
-      cloudfrontURL: !Sub https://${mcCloudFront.DomainName}
+      cloudfrontURL: !If
+        - HasManagementDomain
+        - !Sub https://${ManagementDomain}
+        - !Sub https://${mcCloudFront.DomainName}
       cognitoclientid: !Ref mcCognitoAppClient
       cognitodomain: !Sub ${mcUserPoolDomain}.auth.${AWS::Region}.amazoncognito.com
       apiurl: !Sub https://${mcControlApi}.execute-api.${AWS::Region}.amazonaws.com/prod/
