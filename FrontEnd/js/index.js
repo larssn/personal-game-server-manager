@@ -216,6 +216,8 @@ async function init() {
   refreshData();
   setInterval(refreshData, 5000);
 
+  fetchBilling();
+
   async function authIfNeeded() {
     try {     
       await Auth.currentAuthenticatedUser();
@@ -298,6 +300,25 @@ async function getJwt() {
       })
       .catch(e => {console.log(e)})
   return jwt
+}
+
+//////////////////// Billing //////////////////////////
+
+async function fetchBilling() {
+  var jwt = await getJwt();
+  var url = API_URL + "billing/" + query_string;
+  var response = await fetch(url, {
+    method: 'get',
+    headers: new Headers({ 'Authorization': jwt })
+  });
+  var data = await response.json();
+
+  if (data[1]) {
+    document.getElementById('billingCurrent').textContent = '$' + data[1].currentCost;
+    var forecast = data[1].forecastCost;
+    document.getElementById('billingForecast').textContent =
+        forecast === 'N/A' ? 'N/A' : '$' + forecast;
+  }
 }
 
 //////////////////// Admin List //////////////////////////

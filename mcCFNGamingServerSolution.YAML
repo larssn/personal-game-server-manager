@@ -22,6 +22,7 @@ Metadata:
           - FrontEndVersion
           - ManagementDomain
           - ManagementCertificateArn
+          - BillingTagKey
       - Label:
           default: AWS Configuration
         Parameters:
@@ -77,6 +78,8 @@ Metadata:
         default: Custom domain for the management UI (e.g. admin.example.com). Leave blank to use the CloudFront URL.
       ManagementCertificateArn:
         default: ACM certificate ARN (must be in us-east-1) for the custom management domain
+      BillingTagKey:
+        default: Tag key used for Cost Allocation billing (auto-activated as a Cost Allocation Tag)
               
 Parameters:
   GameServer:
@@ -191,6 +194,10 @@ Parameters:
     Type: String
     Default: mcServer
     ConstraintDescription: This is a mandatory field - you must pust something in.  We recommend not changing the default value.
+  BillingTagKey:
+    Description: Tag key used for Cost Allocation in billing. This tag will be auto-activated as a Cost Allocation Tag. Defaults to the same tag used to identify your server.
+    Type: String
+    Default: mcServerFinder
   ShutdownTimeHours:
     Description: Setting a time here will automatically stop your server at the same time every day.  You adjust the rule, add rules, changes days etc. later directly in the AWS EventBridge Console.  IMPORTANT NOTE - the time must be set in GMT not your local time zone (also note therefore this time will appear to change when going from summer time to winter for relevant time zones).  Leaving blank will not set an auto server shut down rule.
     Type: String
@@ -374,6 +381,7 @@ Resources:
     DependsOn:
       - mcApiGetInfoGetMethod
       - mcApiAdminListGetMethod
+      - mcApiBillingGetMethod
     Type: 'AWS::ApiGateway::Deployment'
     Properties: 
       RestApiId: !Ref mcControlApi
@@ -423,6 +431,15 @@ Resources:
         - mcControlApi
         - RootResourceId
       PathPart: adminlist
+      RestApiId: !Ref mcControlApi
+
+  mcControlApiResBilling:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      ParentId: !GetAtt
+        - mcControlApi
+        - RootResourceId
+      PathPart: billing
       RestApiId: !Ref mcControlApi
 
   mcApiGetInfoGetMethod:
@@ -798,6 +815,80 @@ Resources:
       ResourceId: !Ref mcControlApiResAdminList
       RestApiId: !Ref mcControlApi
 
+  mcApiBillingGetMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      ApiKeyRequired: false
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref mcCognitoAuthoriser
+      HttpMethod: GET
+      Integration:
+          IntegrationHttpMethod: POST
+          IntegrationResponses:
+            - StatusCode: 200
+              ResponseParameters:
+                method.response.header.Access-Control-Allow-Origin: !If
+                  - HasManagementDomain
+                  - !Sub "'https://${ManagementDomain}'"
+                  - !Sub "'https://${mcCloudFront.DomainName}'"
+              ResponseTemplates:
+                application/json : ''
+          PassthroughBehavior: WHEN_NO_TEMPLATES
+          RequestTemplates:
+            application/json : "{\r\n \"mcTagName\": \"$input.params('mctagname')\",\r\n \"mcTagValue\": \"$input.params('mctagvalue')\"\r\n}"
+          TimeoutInMillis: 15000
+          Type: AWS
+          Uri: !Sub
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+            - lambdaArn: !GetAtt mcBillingLambda.Arn
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json : 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin : false
+      OperationName: Billing
+      RequestParameters:
+        method.request.querystring.mctagname : false
+        method.request.querystring.mctagvalue : false
+      ResourceId: !Ref mcControlApiResBilling
+      RestApiId: !Ref mcControlApi
+
+  mcApiBillingOptionsMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      Integration:
+          IntegrationResponses:
+            - StatusCode: 200
+              ResponseParameters:
+                method.response.header.Access-Control-Allow-Headers : "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                method.response.header.Access-Control-Allow-Origin: !If
+                  - HasManagementDomain
+                  - !Sub "'https://${ManagementDomain}'"
+                  - !Sub "'https://${mcCloudFront.DomainName}'"
+                method.response.header.Access-Control-Allow-Methods : "'GET,OPTIONS'"
+              ResponseTemplates:
+                application/json : ''
+          PassthroughBehavior: WHEN_NO_MATCH
+          RequestTemplates:
+            application/json : '{"statusCode": 200}'
+          TimeoutInMillis: 15000
+          Type: MOCK
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json : 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers : false
+            method.response.header.Access-Control-Allow-Origin : false
+            method.response.header.Access-Control-Allow-Methods : false
+      OperationName: BillingOPTIONS
+      ResourceId: !Ref mcControlApiResBilling
+      RestApiId: !Ref mcControlApi
+
   mcStateMachineDNS:
     Type: 'AWS::StepFunctions::StateMachine'
     Properties:
@@ -998,6 +1089,34 @@ Resources:
                 Action:
                   - 'cloudfront:CreateInvalidation'
                 Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${mcCloudFront}'
+
+  mcActivateCostTagLambdaIamRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Description: Execution role for Cost Allocation Tag activation Lambda
+      Path: /service-role/
+      Policies:
+        - PolicyName: mcActivateCostTagInline
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Action:
+                  - 'ce:UpdateCostAllocationTagsStatus'
+                Resource: '*'
 
   mcUpdateDnsLambdaIamRole:
     Type: 'AWS::IAM::Role'
@@ -1387,6 +1506,40 @@ Resources:
       Runtime: python3.8
       Timeout: 10
 
+  mcActivateCostTagLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+          def lambda_handler(event, context):
+              tag_key = event['ResourceProperties']['tagKey']
+              ce = boto3.client('ce', region_name='us-east-1')
+              if event['RequestType'] in ('Create', 'Update'):
+                  try:
+                      ce.update_cost_allocation_tags_status(
+                          CostAllocationTagsStatus=[{'TagKey': tag_key, 'Status': 'Active'}]
+                      )
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': f'Activated cost allocation tag: {tag_key}'})
+                  except Exception as e:
+                      print(e)
+                      cfnresponse.send(event, context, cfnresponse.FAILED, {'Response': str(e)})
+              else:
+                  try:
+                      ce.update_cost_allocation_tags_status(
+                          CostAllocationTagsStatus=[{'TagKey': tag_key, 'Status': 'Inactive'}]
+                      )
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': f'Deactivated cost allocation tag: {tag_key}'})
+                  except Exception as e:
+                      print(e)
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Failed to deactivate tag on delete, ignoring.'})
+      Description: Custom resource lambda to activate Cost Allocation Tag for billing
+      Role: !GetAtt mcActivateCostTagLambdaIamRole.Arn
+      Handler: index.lambda_handler
+      Runtime: python3.8
+      Timeout: 10
+
   mcStartStopLambda:
     Type: 'AWS::Lambda::Function'
     DependsOn: mcCopyLambdaFiles
@@ -1718,6 +1871,113 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${mcControlApi}/*/GET/adminlist
 
+  mcBillingLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          from datetime import datetime, timedelta
+
+          ce = boto3.client('ce', region_name='us-east-1')
+
+          def lambda_handler(event, context):
+              tag_key = os.environ['BILLING_TAG_KEY']
+              tag_value = event['mcTagValue']
+
+              today = datetime.utcnow()
+              first_of_month = today.replace(day=1).strftime('%Y-%m-%d')
+              today_str = today.strftime('%Y-%m-%d')
+
+              if first_of_month == today_str:
+                  return ['Success', {'currentCost': '0.00', 'forecastCost': 'N/A'}]
+
+              tag_filter = {'Tags': {'Key': tag_key, 'Values': [tag_value]}}
+
+              mtd = ce.get_cost_and_usage(
+                  TimePeriod={'Start': first_of_month, 'End': today_str},
+                  Granularity='MONTHLY',
+                  Metrics=['UnblendedCost'],
+                  Filter=tag_filter
+              )
+              current_cost = '0.00'
+              for result in mtd['ResultsByTime']:
+                  current_cost = result['Total']['UnblendedCost']['Amount']
+
+              forecast_cost = 'N/A'
+              try:
+                  next_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
+                  forecast = ce.get_cost_forecast(
+                      TimePeriod={'Start': today_str, 'End': next_month.strftime('%Y-%m-%d')},
+                      Metric='UNBLENDED_COST',
+                      Granularity='MONTHLY',
+                      Filter=tag_filter
+                  )
+                  forecast_cost = forecast['Total']['Amount']
+              except ce.exceptions.DataUnavailableException:
+                  pass
+
+              current_cost = f'{float(current_cost):.2f}'
+              if forecast_cost != 'N/A':
+                  forecast_cost = f'{float(forecast_cost):.2f}'
+
+              return ['Success', {'currentCost': current_cost, 'forecastCost': forecast_cost}]
+      Description: Lambda function to fetch billing data from Cost Explorer
+      Role: !GetAtt mcBillingLambdaIamRole.Arn
+      Handler: index.lambda_handler
+      Runtime: python3.8
+      Timeout: 10
+      Environment:
+        Variables:
+          BILLING_TAG_KEY: !Ref BillingTagKey
+
+  mcBillingLambdaIamRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Description: Execution role for billing Lambda function
+      Path: /service-role/
+      Policies:
+        - PolicyName: mcBillingInline
+          PolicyDocument: |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                  {
+                  "Effect": "Allow",
+                  "Action":[
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                    ],
+                  "Resource": "*"
+                  },
+                  {
+                  "Effect": "Allow",
+                  "Action":[
+                    "ce:GetCostAndUsage",
+                    "ce:GetCostForecast"
+                    ],
+                  "Resource": "*"
+                  }
+              ]
+            }
+
+  mcBillingLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt mcBillingLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${mcControlApi}/*/GET/billing
+
   mcSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
@@ -1923,6 +2183,12 @@ Resources:
     Properties:
       ServiceToken: !GetAtt mcgetSrcIpsLambda.Arn
       region: !Ref AWS::Region
+
+  mcActivateCostTag:
+    Type: Custom::ActivateCostTag
+    Properties:
+      ServiceToken: !GetAtt mcActivateCostTagLambda.Arn
+      tagKey: !Ref BillingTagKey
 
 Outputs:
   mcControlApiUrl:
