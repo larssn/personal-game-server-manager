@@ -392,9 +392,24 @@ Resources:
       - mcApiBillingGetMethod
       - mcApiBillingOptionsMethod
     Type: 'AWS::ApiGateway::Deployment'
-    Properties: 
+    Properties:
       RestApiId: !Ref mcControlApi
-      Description: Deployment of gaming control REST API
+      Description: !Sub
+        - 'API methods: ${Methods}'
+        - Methods: !Join
+            - ','
+            - - !Ref mcApiGetInfoGetMethod
+              - !Ref mcApiGetInfoOptionsMethod
+              - !Ref mcApiStartGetMethod
+              - !Ref mcApiStartOptionsMethod
+              - !Ref mcApiStopGetMethod
+              - !Ref mcApiStopOptionsMethod
+              - !Ref mcApiResizeGetMethod
+              - !Ref mcApiResizeOptionsMethod
+              - !Ref mcApiAdminListGetMethod
+              - !Ref mcApiAdminListOptionsMethod
+              - !Ref mcApiBillingGetMethod
+              - !Ref mcApiBillingOptionsMethod
       StageName: prod
 
   mcControlApiResGetInfo:
