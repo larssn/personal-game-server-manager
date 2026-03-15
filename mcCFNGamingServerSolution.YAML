@@ -1216,6 +1216,7 @@ Resources:
               properties = event['ResourceProperties']
               urls = properties['sourceUrls']
               bucket = properties['targetS3Bucket']
+              physical_id = event.get('PhysicalResourceId', 'mcCopyToS3-' + bucket)
               if event['RequestType'] in ('Create', 'Update'):
                 try:
                   for i in urls:
@@ -1238,20 +1239,24 @@ Resources:
                     if i.get('folder'):
                       fileName = i.get('folder')+ '/' + fileName
                     s3.Object(bucket, fileName).put(Body=open(filePath, 'rb'),ContentType=contentType)
-                  return cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Success - files copied'})
+                  return cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Success - files copied'}, physical_id)
                 except Exception as e:
                   print(e)
-                  return cfnresponse.send(event, context, cfnresponse.FAILED, {'Response': 'Failed to copy files'})
+                  return cfnresponse.send(event, context, cfnresponse.FAILED, {'Response': 'Failed to copy files'}, physical_id)
               elif event['RequestType'] == 'Delete':
-                try:
-                  s3bucket = s3.Bucket(bucket)
-                  s3bucket.objects.delete()
-                  return cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Success- bucket emptied'})
-                except Exception as e:
-                  print(e)
-                  return cfnresponse.send(event, context, cfnresponse.FAILED, {'Response': 'Failed to empty bucket please clean up manually'})
+                expected_id = 'mcCopyToS3-' + bucket
+                if physical_id == expected_id:
+                  try:
+                    s3bucket = s3.Bucket(bucket)
+                    s3bucket.objects.all().delete()
+                    return cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Success- bucket emptied'}, physical_id)
+                  except Exception as e:
+                    print(e)
+                    return cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Failed to empty bucket'}, physical_id)
+                else:
+                  return cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Cleanup delete - skipped'}, physical_id)
               else:
-                return cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Unknown RequestType'})
+                return cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Unknown RequestType'}, physical_id)
       Description: Custom resource lambda to copy required code files from github to S3
       Role: !GetAtt mcCustomResourceLambdaIamRole.Arn
       Handler: index.lambda_handler
