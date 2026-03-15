@@ -366,6 +366,9 @@ Resources:
         Types:
           - REGIONAL
       FailOnWarnings: true
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcCognitoAuthoriser:
     Type: 'AWS::ApiGateway::Authorizer'
@@ -930,6 +933,9 @@ Resources:
       RoleArn: !GetAtt mcStateMachineIamRole.Arn
       StateMachineName: !Sub ${AWS::StackName}-mcStateMachine
       StateMachineType: STANDARD
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcCognitoUserPool:
     Type: AWS::Cognito::UserPool
@@ -954,8 +960,10 @@ Resources:
           Required: true
       UsernameAttributes: 
         - email
-      UsernameConfiguration: 
+      UsernameConfiguration:
           CaseSensitive: false
+      UserPoolTags:
+          mcServerFinder: !Ref IdTagValue
 
   mcUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
@@ -1323,6 +1331,8 @@ Resources:
     Properties:
       BackupVaultName: !Sub "${AWS::StackName}-mcBackupVaultWithDailyBackups"
       EncryptionKeyArn: !GetAtt mcKmsKey.Arn
+      BackupVaultTags:
+        mcServerFinder: !Ref IdTagValue
 
   mcBackupPlan:
     Type: "AWS::Backup::BackupPlan"
@@ -1333,8 +1343,10 @@ Resources:
           - RuleName: "mcDailyBackups"
             TargetBackupVault: !Ref mcBackupVault
             ScheduleExpression: "cron(0 5 ? * * *)"
-            Lifecycle: 
+            Lifecycle:
               DeleteAfterDays: 7
+      BackupPlanTags:
+        mcServerFinder: !Ref IdTagValue
 
   TagBasedBackupSelection:
     Type: "AWS::Backup::BackupSelection"
@@ -1410,7 +1422,10 @@ Resources:
       Handler: index.lambda_handler
       Runtime: python3.8
       Timeout: 10
-  
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
+
   mcUpdateConfigLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -1454,6 +1469,9 @@ Resources:
       Handler: index.lambda_handler
       Runtime: python3.8
       Timeout: 10
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcgetSrcIpsLambda:
     Type: AWS::Lambda::Function
@@ -1482,6 +1500,9 @@ Resources:
       Handler: index.lambda_handler
       Runtime: python3.8
       Timeout: 10
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcInvalidateCacheLambda:
     Type: AWS::Lambda::Function
@@ -1514,6 +1535,9 @@ Resources:
       Handler: index.lambda_handler
       Runtime: python3.8
       Timeout: 10
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcActivateCostTagLambda:
     Type: AWS::Lambda::Function
@@ -1548,6 +1572,9 @@ Resources:
       Handler: index.lambda_handler
       Runtime: python3.8
       Timeout: 10
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcStartStopLambda:
     Type: 'AWS::Lambda::Function'
@@ -1570,6 +1597,9 @@ Resources:
       Role: !GetAtt mcStartStopLambdaIamRole.Arn
       Runtime: python3.8
       Timeout: 10
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcUpdateDnsLambda:
     Type: 'AWS::Lambda::Function'
@@ -1585,6 +1615,9 @@ Resources:
       Role: !GetAtt mcUpdateDnsLambdaIamRole.Arn
       Runtime: python3.8
       Timeout: 10
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcLambdaSourceFilesS3:
     Type: AWS::S3::Bucket
@@ -1595,22 +1628,28 @@ Resources:
           BlockPublicPolicy: True
           IgnorePublicAcls: True
           RestrictPublicBuckets: True
-      LoggingConfiguration: 
+      LoggingConfiguration:
         DestinationBucketName: !Ref mcLoggingBucket
         LogFilePrefix: mcS3BucketLogs/
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcS3Bucket:
     Type: AWS::S3::Bucket
-    Properties: 
+    Properties:
       AccessControl: Private
       PublicAccessBlockConfiguration: 
           BlockPublicAcls: True
           BlockPublicPolicy: True
           IgnorePublicAcls: True
           RestrictPublicBuckets: True
-      LoggingConfiguration: 
+      LoggingConfiguration:
         DestinationBucketName: !Ref mcLoggingBucket
         LogFilePrefix: mcS3BucketLogs/
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcS3BucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -1641,6 +1680,9 @@ Resources:
       OwnershipControls:
         Rules:
           - ObjectOwnership: BucketOwnerPreferred
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcOriginAccessId:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
@@ -1686,6 +1728,9 @@ Resources:
             SslSupportMethod: sni-only
             MinimumProtocolVersion: TLSv1.2_2021
           - CloudFrontDefaultCertificate: True
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcManagementDnsRecord:
     Type: AWS::Route53::RecordSet
@@ -1809,6 +1854,9 @@ Resources:
       Handler: index.lambda_handler
       Runtime: python3.8
       Timeout: 15
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcAdminListLambdaIamRole:
     Type: 'AWS::IAM::Role'
@@ -1940,6 +1988,9 @@ Resources:
       Environment:
         Variables:
           BILLING_TAG_KEY: !Ref BillingTagKey
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
   mcBillingLambdaIamRole:
     Type: 'AWS::IAM::Role'
