@@ -6,6 +6,8 @@ import boto3
 import json
 import os
 
+VALID_RESIZE_TYPES = {'micro', 'small', 'medium', 'large'}
+
 
 def lambda_handler(event, context): #standard function called on lambda invocation
     
@@ -52,6 +54,9 @@ def lambda_handler(event, context): #standard function called on lambda invocati
     elif event['command'] == "getInfo":
             statusmessage = "No action, just getting info"
     elif event['command'] == "reSize":
+        if event.get('reSizeType') not in VALID_RESIZE_TYPES:
+            statusmessage = "Invalid resize type. Valid options: micro, small, medium, large"
+            return (statusmessage, mcInfo)
         for i in mcInfo['Instances']:
             if i['State'] != "stopped":
                 statusmessage = "Your servers are not stopped. Please stop your servers and retry resizing them"

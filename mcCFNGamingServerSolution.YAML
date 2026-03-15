@@ -437,7 +437,10 @@ Resources:
           IntegrationResponses:
             - StatusCode: 200
               ResponseParameters: 
-                method.response.header.Access-Control-Allow-Origin : "'*'"
+                method.response.header.Access-Control-Allow-Origin: !If
+                  - HasManagementDomain
+                  - !Sub "'https://${ManagementDomain}'"
+                  - !Sub "'https://${mcCloudFront.DomainName}'"
               ResponseTemplates: 
                 application/json : ''
           PassthroughBehavior: WHEN_NO_TEMPLATES
@@ -472,8 +475,10 @@ Resources:
             - StatusCode: 200
               ResponseParameters: 
                 method.response.header.Access-Control-Allow-Headers : "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-                method.response.header.Access-Control-Allow-Origin : "'*'"
-                method.response.header.Access-Control-Allow-Credentials : "'true'"
+                method.response.header.Access-Control-Allow-Origin: !If
+                  - HasManagementDomain
+                  - !Sub "'https://${ManagementDomain}'"
+                  - !Sub "'https://${mcCloudFront.DomainName}'"
                 method.response.header.Access-Control-Allow-Methods : "'GET,OPTIONS'"
               ResponseTemplates: 
                 application/json : ''
@@ -489,7 +494,6 @@ Resources:
           ResponseParameters: 
             method.response.header.Access-Control-Allow-Headers : false
             method.response.header.Access-Control-Allow-Origin : false
-            method.response.header.Access-Control-Allow-Credentials : false
             method.response.header.Access-Control-Allow-Methods : false
       OperationName: GetInfoOPTIONS
       ResourceId: !Ref mcControlApiResGetInfo
@@ -507,7 +511,10 @@ Resources:
           IntegrationResponses:
             - StatusCode: 200
               ResponseParameters: 
-                method.response.header.Access-Control-Allow-Origin : "'*'"
+                method.response.header.Access-Control-Allow-Origin: !If
+                  - HasManagementDomain
+                  - !Sub "'https://${ManagementDomain}'"
+                  - !Sub "'https://${mcCloudFront.DomainName}'"
               ResponseTemplates: 
                 application/json : ''
           PassthroughBehavior: WHEN_NO_TEMPLATES
@@ -542,8 +549,10 @@ Resources:
             - StatusCode: 200
               ResponseParameters: 
                 method.response.header.Access-Control-Allow-Headers : "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-                method.response.header.Access-Control-Allow-Origin : "'*'"
-                method.response.header.Access-Control-Allow-Credentials : "'true'"
+                method.response.header.Access-Control-Allow-Origin: !If
+                  - HasManagementDomain
+                  - !Sub "'https://${ManagementDomain}'"
+                  - !Sub "'https://${mcCloudFront.DomainName}'"
                 method.response.header.Access-Control-Allow-Methods : "'GET,OPTIONS'"
               ResponseTemplates: 
                 application/json : ''
@@ -559,7 +568,6 @@ Resources:
           ResponseParameters: 
             method.response.header.Access-Control-Allow-Headers : false
             method.response.header.Access-Control-Allow-Origin : false
-            method.response.header.Access-Control-Allow-Credentials : false
             method.response.header.Access-Control-Allow-Methods : false
       OperationName: StartOPTIONS
       ResourceId: !Ref mcControlApiResStart
@@ -577,7 +585,10 @@ Resources:
           IntegrationResponses:
             - StatusCode: 200
               ResponseParameters: 
-                method.response.header.Access-Control-Allow-Origin : "'*'"
+                method.response.header.Access-Control-Allow-Origin: !If
+                  - HasManagementDomain
+                  - !Sub "'https://${ManagementDomain}'"
+                  - !Sub "'https://${mcCloudFront.DomainName}'"
               ResponseTemplates: 
                 application/json : ''
           PassthroughBehavior: WHEN_NO_TEMPLATES
@@ -612,8 +623,10 @@ Resources:
             - StatusCode: 200
               ResponseParameters: 
                 method.response.header.Access-Control-Allow-Headers : "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-                method.response.header.Access-Control-Allow-Origin : "'*'"
-                method.response.header.Access-Control-Allow-Credentials : "'true'"
+                method.response.header.Access-Control-Allow-Origin: !If
+                  - HasManagementDomain
+                  - !Sub "'https://${ManagementDomain}'"
+                  - !Sub "'https://${mcCloudFront.DomainName}'"
                 method.response.header.Access-Control-Allow-Methods : "'GET,OPTIONS'"
               ResponseTemplates: 
                 application/json : ''
@@ -629,7 +642,6 @@ Resources:
           ResponseParameters: 
             method.response.header.Access-Control-Allow-Headers : false
             method.response.header.Access-Control-Allow-Origin : false
-            method.response.header.Access-Control-Allow-Credentials : false
             method.response.header.Access-Control-Allow-Methods : false
       OperationName: StopOPTIONS
       ResourceId: !Ref mcControlApiResStop
@@ -647,7 +659,10 @@ Resources:
           IntegrationResponses:
             - StatusCode: 200
               ResponseParameters: 
-                method.response.header.Access-Control-Allow-Origin : "'*'"
+                method.response.header.Access-Control-Allow-Origin: !If
+                  - HasManagementDomain
+                  - !Sub "'https://${ManagementDomain}'"
+                  - !Sub "'https://${mcCloudFront.DomainName}'"
               ResponseTemplates: 
                 application/json : ''
           PassthroughBehavior: WHEN_NO_TEMPLATES
@@ -683,8 +698,10 @@ Resources:
             - StatusCode: 200
               ResponseParameters: 
                 method.response.header.Access-Control-Allow-Headers : "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-                method.response.header.Access-Control-Allow-Origin : "'*'"
-                method.response.header.Access-Control-Allow-Credentials : "'true'"
+                method.response.header.Access-Control-Allow-Origin: !If
+                  - HasManagementDomain
+                  - !Sub "'https://${ManagementDomain}'"
+                  - !Sub "'https://${mcCloudFront.DomainName}'"
                 method.response.header.Access-Control-Allow-Methods : "'GET,OPTIONS'"
               ResponseTemplates: 
                 application/json : ''
@@ -700,7 +717,6 @@ Resources:
           ResponseParameters: 
             method.response.header.Access-Control-Allow-Headers : false
             method.response.header.Access-Control-Allow-Origin : false
-            method.response.header.Access-Control-Allow-Credentials : false
             method.response.header.Access-Control-Allow-Methods : false
       OperationName: ResizeOPTIONS
       ResourceId: !Ref mcControlApiResResize
@@ -718,7 +734,10 @@ Resources:
           IntegrationResponses:
             - StatusCode: 200
               ResponseParameters:
-                method.response.header.Access-Control-Allow-Origin : "'*'"
+                method.response.header.Access-Control-Allow-Origin: !If
+                  - HasManagementDomain
+                  - !Sub "'https://${ManagementDomain}'"
+                  - !Sub "'https://${mcCloudFront.DomainName}'"
               ResponseTemplates:
                 application/json : ''
           PassthroughBehavior: WHEN_NO_TEMPLATES
@@ -755,8 +774,10 @@ Resources:
             - StatusCode: 200
               ResponseParameters:
                 method.response.header.Access-Control-Allow-Headers : "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-                method.response.header.Access-Control-Allow-Origin : "'*'"
-                method.response.header.Access-Control-Allow-Credentials : "'true'"
+                method.response.header.Access-Control-Allow-Origin: !If
+                  - HasManagementDomain
+                  - !Sub "'https://${ManagementDomain}'"
+                  - !Sub "'https://${mcCloudFront.DomainName}'"
                 method.response.header.Access-Control-Allow-Methods : "'GET,OPTIONS'"
               ResponseTemplates:
                 application/json : ''
@@ -772,7 +793,6 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers : false
             method.response.header.Access-Control-Allow-Origin : false
-            method.response.header.Access-Control-Allow-Credentials : false
             method.response.header.Access-Control-Allow-Methods : false
       OperationName: AdminListOPTIONS
       ResourceId: !Ref mcControlApiResAdminList
