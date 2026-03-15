@@ -1901,7 +1901,7 @@ Resources:
                         "Resource": "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*",
                         "Condition": {
                           "StringEquals": {
-                            "ec2:ResourceTag/${tagname}": "${tagvalue}"
+                            "ssm:resourceTag/${tagname}": "${tagvalue}"
                           }
                         }
                         },
