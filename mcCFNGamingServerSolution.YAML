@@ -18,6 +18,8 @@ Metadata:
           - GamingTCPTrafficPortEnd
           - GamingUDPTrafficPortStart
           - GamingUDPTrafficPortEnd
+          - GitHubRepo
+          - FrontEndVersion
       - Label:
           default: AWS Configuration
         Parameters:
@@ -64,7 +66,11 @@ Metadata:
       GamingUDPTrafficPortStart:
         default: Start of the port range that should be accessible from the internet for UDP traffic.  Leave blank if you only want to allow TCP traffic to your server.
       GamingUDPTrafficPortEnd:
-        default: End of the port range that should be accessible from the internet for UDP traffic. 
+        default: End of the port range that should be accessible from the internet for UDP traffic.
+      GitHubRepo:
+        default: GitHub repository in owner/repo format (e.g. aws-samples/personal-game-server-manager)
+      FrontEndVersion:
+        default: Bump this value to pull fresh frontend files from GitHub on stack update
               
 Parameters:
   GameServer:
@@ -73,6 +79,16 @@ Parameters:
     AllowedPattern: https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)
     ConstraintDescription: 'Must be a valid URL.'
     Default: https://raw.githubusercontent.com/aws-samples/personal-game-server-manager/main/Bash/valheim.sh
+  GitHubRepo:
+    Description: GitHub repository in owner/repo format. Used to fetch frontend, lambda, and bash scripts.
+    Type: String
+    Default: aws-samples/personal-game-server-manager
+    AllowedPattern: '[a-zA-Z0-9\.\-\_]+\/[a-zA-Z0-9\.\-\_]+'
+    ConstraintDescription: 'Must be in owner/repo format (e.g. aws-samples/personal-game-server-manager)'
+  FrontEndVersion:
+    Description: Bump this value to pull fresh frontend and lambda files from GitHub on stack update.
+    Type: String
+    Default: '1'
   KeyName:
     Description: >-
       This is required so you can access the server.  If there is no option to
@@ -306,14 +322,16 @@ Resources:
             Action: 'sts:AssumeRole'
       Description: IAM role to allow gaming EC2 server to update parameter with generated app password
       Path: /service-role/
-      Policies: 
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
         - PolicyName: mcPersonalGamingServerIamRole
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action: "ssm:PutParameter"
-                Resource: !Sub 
+                Resource: !Sub
                   - arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${paramName}
                   - paramName: !Ref mcPwordParameter
 
@@ -338,7 +356,9 @@ Resources:
       Type: COGNITO_USER_POOLS
 
   mcControlApiDeployment:
-    DependsOn: mcApiGetInfoGetMethod
+    DependsOn:
+      - mcApiGetInfoGetMethod
+      - mcApiAdminListGetMethod
     Type: 'AWS::ApiGateway::Deployment'
     Properties: 
       RestApiId: !Ref mcControlApi
@@ -374,11 +394,20 @@ Resources:
 
   mcControlApiResStop:
     Type: 'AWS::ApiGateway::Resource'
-    Properties: 
-      ParentId: !GetAtt 
+    Properties:
+      ParentId: !GetAtt
         - mcControlApi
         - RootResourceId
       PathPart: stop
+      RestApiId: !Ref mcControlApi
+
+  mcControlApiResAdminList:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      ParentId: !GetAtt
+        - mcControlApi
+        - RootResourceId
+      PathPart: adminlist
       RestApiId: !Ref mcControlApi
 
   mcApiGetInfoGetMethod:
@@ -662,6 +691,78 @@ Resources:
       ResourceId: !Ref mcControlApiResResize
       RestApiId: !Ref mcControlApi
 
+  mcApiAdminListGetMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      ApiKeyRequired: false
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref mcCognitoAuthoriser
+      HttpMethod: GET
+      Integration:
+          IntegrationHttpMethod: POST
+          IntegrationResponses:
+            - StatusCode: 200
+              ResponseParameters:
+                method.response.header.Access-Control-Allow-Origin : "'*'"
+              ResponseTemplates:
+                application/json : ''
+          PassthroughBehavior: WHEN_NO_TEMPLATES
+          RequestTemplates:
+            application/json : "{\r\n \"mcTagName\": \"$input.params('mctagname')\",\r\n \"mcTagValue\": \"$input.params('mctagvalue')\",\r\n \"action\": \"$input.params('action')\",\r\n \"steamId\": \"$input.params('steamid')\"\r\n}"
+          TimeoutInMillis: 29000
+          Type: AWS
+          Uri: !Sub
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+            - lambdaArn: !GetAtt mcAdminListLambda.Arn
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json : 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin : false
+      OperationName: AdminList
+      RequestParameters:
+        method.request.querystring.mctagname : false
+        method.request.querystring.mctagvalue : false
+        method.request.querystring.action : false
+        method.request.querystring.steamid : false
+      ResourceId: !Ref mcControlApiResAdminList
+      RestApiId: !Ref mcControlApi
+
+  mcApiAdminListOptionsMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      Integration:
+          IntegrationResponses:
+            - StatusCode: 200
+              ResponseParameters:
+                method.response.header.Access-Control-Allow-Headers : "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                method.response.header.Access-Control-Allow-Origin : "'*'"
+                method.response.header.Access-Control-Allow-Credentials : "'true'"
+                method.response.header.Access-Control-Allow-Methods : "'GET,OPTIONS'"
+              ResponseTemplates:
+                application/json : ''
+          PassthroughBehavior: WHEN_NO_MATCH
+          RequestTemplates:
+            application/json : '{"statusCode": 200}'
+          TimeoutInMillis: 15000
+          Type: MOCK
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json : 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers : false
+            method.response.header.Access-Control-Allow-Origin : false
+            method.response.header.Access-Control-Allow-Credentials : false
+            method.response.header.Access-Control-Allow-Methods : false
+      OperationName: AdminListOPTIONS
+      ResourceId: !Ref mcControlApiResAdminList
+      RestApiId: !Ref mcControlApi
+
   mcStateMachineDNS:
     Type: 'AWS::StepFunctions::StateMachine'
     Properties:
@@ -825,6 +926,34 @@ Resources:
                     - ${bucket}/*
                     - bucket: !GetAtt mcLoggingBucket.Arn
           PolicyName: mcCustomResourceInline
+
+  mcInvalidateCacheLambdaIamRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Description: Execution role for CloudFront cache invalidation Lambda
+      Path: /service-role/
+      Policies:
+        - PolicyName: mcInvalidateCacheInline
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Action:
+                  - 'cloudfront:CreateInvalidation'
+                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${mcCloudFront}'
 
   mcUpdateDnsLambdaIamRole:
     Type: 'AWS::IAM::Role'
@@ -1063,7 +1192,7 @@ Resources:
               properties = event['ResourceProperties']
               urls = properties['sourceUrls']
               bucket = properties['targetS3Bucket']
-              if event['RequestType'] == 'Create':
+              if event['RequestType'] in ('Create', 'Update'):
                 try:
                   for i in urls:
                     url = i.get('url')
@@ -1082,7 +1211,7 @@ Resources:
                       fileName = zipFileName
                       filePath = zipFilePath
                     contentType = i.get('content-type')
-                    if i.get('folder'): 
+                    if i.get('folder'):
                       fileName = i.get('folder')+ '/' + fileName
                     s3.Object(bucket, fileName).put(Body=open(filePath, 'rb'),ContentType=contentType)
                   cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Success - files copied'})
@@ -1116,7 +1245,7 @@ Resources:
               properties = event['ResourceProperties']
               configfile = properties['configfile']
               bucket = properties['S3Bucket']
-              if event['RequestType'] == 'Create':
+              if event['RequestType'] in ('Create', 'Update'):
                   try:
                       with open('/tmp/configuration.js', 'wb') as f:
                           s3.download_fileobj(bucket, configfile, f)
@@ -1171,6 +1300,38 @@ Resources:
                 cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Update or Delete action not Supported.'})         
       Description: Custom resource lambda to obtain source IP address range for EC2 Instance Connect in current region
       Role: !GetAtt mcCustomResourceLambdaIamRole.Arn
+      Handler: index.lambda_handler
+      Runtime: python3.8
+      Timeout: 10
+
+  mcInvalidateCacheLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import time
+          import cfnresponse
+          def lambda_handler(event, context):
+              if event['RequestType'] in ('Create', 'Update'):
+                  try:
+                      cf = boto3.client('cloudfront')
+                      dist_id = event['ResourceProperties']['distributionId']
+                      cf.create_invalidation(
+                          DistributionId=dist_id,
+                          InvalidationBatch={
+                              'Paths': {'Quantity': 1, 'Items': ['/*']},
+                              'CallerReference': str(time.time())
+                          }
+                      )
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Cache invalidation created'})
+                  except Exception as e:
+                      print(e)
+                      cfnresponse.send(event, context, cfnresponse.FAILED, {'Response': 'Failed to invalidate cache'})
+              else:
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Delete - no action needed'})
+      Description: Custom resource lambda to invalidate CloudFront cache on stack update
+      Role: !GetAtt mcInvalidateCacheLambdaIamRole.Arn
       Handler: index.lambda_handler
       Runtime: python3.8
       Timeout: 10
@@ -1334,11 +1495,159 @@ Resources:
 
   mcStartStopLambdaPermissionResize:
     Type: AWS::Lambda::Permission
-    Properties: 
-      Action: lambda:InvokeFunction 
+    Properties:
+      Action: lambda:InvokeFunction
       FunctionName: !GetAtt mcStartStopLambda.Arn
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${mcControlApi}/*/GET/resize
+
+  mcAdminListLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import time
+
+          ssm = boto3.client('ssm')
+          ec2 = boto3.client('ec2')
+
+          ADMIN_FILE = '/usr/games/serverconfig/valheim/saves/adminlist.txt'
+
+          def lambda_handler(event, context):
+              tag_key = event['mcTagName']
+              tag_value = event['mcTagValue']
+              action = event.get('action', '') or 'list'
+              steam_id = event.get('steamId', '') or ''
+
+              instance_id = find_instance(tag_key, tag_value)
+              if not instance_id:
+                  return ['No running instance found']
+
+              if action == 'list':
+                  cmd = f'cat {ADMIN_FILE} 2>/dev/null || echo ""'
+              elif action == 'add':
+                  if not steam_id.isdigit() or len(steam_id) != 17:
+                      return ['Invalid Steam ID']
+                  cmd = f'grep -qxF "{steam_id}" {ADMIN_FILE} 2>/dev/null || echo "{steam_id}" >> {ADMIN_FILE}'
+              elif action == 'remove':
+                  if not steam_id.isdigit() or len(steam_id) != 17:
+                      return ['Invalid Steam ID']
+                  cmd = f'sed -i "/^{steam_id}$/d" {ADMIN_FILE}'
+              else:
+                  return ['Invalid action']
+
+              result = ssm.send_command(
+                  InstanceIds=[instance_id],
+                  DocumentName='AWS-RunShellScript',
+                  Parameters={'commands': [cmd]},
+                  TimeoutSeconds=10
+              )
+              command_id = result['Command']['CommandId']
+
+              time.sleep(3)
+              output = ssm.get_command_invocation(
+                  CommandId=command_id,
+                  InstanceId=instance_id
+              )
+
+              if action == 'list':
+                  content = output.get('StandardOutputContent', '')
+                  ids = [l.strip() for l in content.split('\n') if l.strip() and not l.strip().startswith('//')]
+                  return ids
+              else:
+                  if output['Status'] == 'Success':
+                      return [f'Admin {action} successful for {steam_id}']
+                  else:
+                      return [f'Admin {action} failed']
+
+          def find_instance(tag_key, tag_value):
+              response = ec2.describe_instances(
+                  Filters=[
+                      {'Name': f'tag:{tag_key}', 'Values': [tag_value]},
+                      {'Name': 'instance-state-name', 'Values': ['running']}
+                  ]
+              )
+              for r in response['Reservations']:
+                  for i in r['Instances']:
+                      return i['InstanceId']
+              return None
+      Description: Lambda function to manage Valheim admin list via SSM
+      Role: !GetAtt mcAdminListLambdaIamRole.Arn
+      Handler: index.lambda_handler
+      Runtime: python3.8
+      Timeout: 15
+
+  mcAdminListLambdaIamRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Description: Execution role for admin list Lambda function
+      Path: /service-role/
+      Policies:
+        - PolicyName: mcAdminListInline
+          PolicyDocument:
+            !Sub
+              - |
+                  {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                        "Effect": "Allow",
+                        "Action":[
+                          "logs:CreateLogGroup",
+                          "logs:CreateLogStream",
+                          "logs:PutLogEvents"
+                          ],
+                        "Resource": "*"
+                        },
+                        {
+                        "Effect": "Allow",
+                        "Action":[
+                          "ec2:DescribeInstances",
+                          "ec2:DescribeTags"
+                          ],
+                        "Resource": "*"
+                        },
+                        {
+                        "Effect": "Allow",
+                        "Action": "ssm:SendCommand",
+                        "Resource": "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*",
+                        "Condition": {
+                          "StringEquals": {
+                            "ec2:ResourceTag/${tagname}": "${tagvalue}"
+                          }
+                        }
+                        },
+                        {
+                        "Effect": "Allow",
+                        "Action": "ssm:SendCommand",
+                        "Resource": "arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript"
+                        },
+                        {
+                        "Effect": "Allow",
+                        "Action": "ssm:GetCommandInvocation",
+                        "Resource": "*"
+                        }
+                    ]
+                  }
+              - tagname: !Ref IdTagName
+                tagvalue: !Ref IdTagValue
+
+  mcAdminListLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt mcAdminListLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${mcControlApi}/*/GET/adminlist
 
   mcSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
@@ -1473,37 +1782,42 @@ Resources:
       SourceArn: !GetAtt mcBedTime.Arn
 
   mcCopyFrontEndFiles:
-    Type: Custom::WebFileCopy 
+    Type: Custom::WebFileCopy
     Properties:
       ServiceToken: !GetAtt mcCopyToS3Lambda.Arn
       targetS3Bucket: !Ref mcS3Bucket
+      version: !Ref FrontEndVersion
       sourceUrls:
-        - url: https://raw.githubusercontent.com/aws-samples/personal-game-server-manager/main/FrontEnd/styles.css
+        - url: !Sub 'https://raw.githubusercontent.com/${GitHubRepo}/main/FrontEnd/styles.css'
           content-type: text/css
-        - url: https://raw.githubusercontent.com/aws-samples/personal-game-server-manager/main/FrontEnd/index.html
+        - url: !Sub 'https://raw.githubusercontent.com/${GitHubRepo}/main/FrontEnd/index.html'
           content-type: text/html
-        - url: https://raw.githubusercontent.com/aws-samples/personal-game-server-manager/main/FrontEnd/signed_in.html
+        - url: !Sub 'https://raw.githubusercontent.com/${GitHubRepo}/main/FrontEnd/signed_in.html'
           content-type: text/html
-        - url: https://raw.githubusercontent.com/aws-samples/personal-game-server-manager/main/FrontEnd/logout.html
+        - url: !Sub 'https://raw.githubusercontent.com/${GitHubRepo}/main/FrontEnd/logout.html'
           content-type: text/html
-        - url: https://raw.githubusercontent.com/aws-samples/personal-game-server-manager/main/FrontEnd/js/config.js
+        - url: !Sub 'https://raw.githubusercontent.com/${GitHubRepo}/main/FrontEnd/js/config.js'
           content-type: application/javascript
           folder: js
-        - url: https://raw.githubusercontent.com/aws-samples/personal-game-server-manager/main/FrontEnd/js/index.js
+        - url: !Sub 'https://raw.githubusercontent.com/${GitHubRepo}/main/FrontEnd/js/index.js'
           content-type: application/javascript
           folder: js
+        - url: !Sub 'https://raw.githubusercontent.com/${GitHubRepo}/main/FrontEnd/img/valheim.jpg'
+          content-type: image/jpeg
+          folder: img
 
   mcCopyLambdaFiles:
     Type: Custom::WebFileCopy
     Properties:
       ServiceToken: !GetAtt mcCopyToS3Lambda.Arn
       targetS3Bucket: !Ref mcLambdaSourceFilesS3
+      version: !Ref FrontEndVersion
       sourceUrls:
-        - url: https://raw.githubusercontent.com/aws-samples/personal-game-server-manager/main/Lambda/mcUpdateDNS-v1_0.py
+        - url: !Sub 'https://raw.githubusercontent.com/${GitHubRepo}/main/Lambda/mcUpdateDNS-v1_0.py'
           content-type: application/zip
           zip: True
           filename: lambda_function.py
-        - url: https://raw.githubusercontent.com/aws-samples/personal-game-server-manager/main/Lambda/gaming_server_start_stop-v1_0.py    
+        - url: !Sub 'https://raw.githubusercontent.com/${GitHubRepo}/main/Lambda/gaming_server_start_stop-v1_0.py'
           content-type: application/zip
           zip: True
           filename: lambda_function.py
@@ -1522,6 +1836,15 @@ Resources:
       idtagvalue: !Ref IdTagValue
       stackname: !Ref AWS::StackName
       coguserpool: !Ref mcCognitoUserPool
+      version: !Ref FrontEndVersion
+
+  mcInvalidateCache:
+    Type: Custom::InvalidateCache
+    DependsOn: mcUpdateConfig
+    Properties:
+      ServiceToken: !GetAtt mcInvalidateCacheLambda.Arn
+      distributionId: !Ref mcCloudFront
+      version: !Ref FrontEndVersion
 
   mcGetInstanceConnectIps: 
     Type: Custom::GetSourceIps

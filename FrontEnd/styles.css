@@ -1,99 +1,131 @@
-/* 
+/*
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 SPDX-License-Identifier: MIT-0
 */
 
-/* -- Amazon Colours -- */
-/* White (background & text) #FFFFFF */
-/* SquidInk #232F3E */
-/* DarkSquidInk #161E2D */
-/* Smile (buttons & footer text) #FF9900 */
-
-
-/* -- Alt Colours -- */
-/* Background - #FFFFFF */
-/* Boxes - #18BEFF */
-/* Boxes-Hover - #00A4E4 */
-/* Buttons - #FF9901 */
-
+/* -- Valheim Dark Theme -- */
+:root {
+    --bg-deep: #040f10;
+    --bg-card: #181d1d;
+    --bg-card-hover: #1e2525;
+    --border-subtle: rgba(221, 97, 25, 0.15);
+    --border-hover: rgba(221, 97, 25, 0.4);
+    --accent-orange: #dd6119;
+    --accent-rust: #ad2817;
+    --accent-bright: #ff8201;
+    --text-primary: #ffffff;
+    --text-secondary: #cccccc;
+    --text-muted: #8d8d8d;
+    --success: #3fb950;
+    --danger: #ad2817;
+}
 
 /* ########## Defaults ################### */
 
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    caret-color: transparent;
+}
+
+input, textarea, select {
+    caret-color: auto;
+}
+
 html {
-    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
     padding-bottom: 4em;
 }
 
-nav, header, footer {
-    display: block;
-}
-
 body {
-    line-height: 1;
-    margin: 0;
-    background-color: #FFFFFF;
-    /* background-color: #FFFFFF; */
+    line-height: 1.5;
+    background-color: var(--bg-deep);
+    color: var(--text-primary);
 }
 
 /* ########## Nav Bar #################### */
 
 nav {
     width: 100%;
-    margin: 0;
+    background-color: var(--bg-card);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 nav ul {
-    background-color: #18BEFF;
-    /* background-color: #232F3E; */
-    overflow: hidden;
+    display: flex;
+    align-items: center;
+    list-style: none;
+    padding: 0 12px;
     margin: 0;
-    padding: 0;
-}
-
-ul.top-nav li {
-    list-style: none;
-    float: left;
-}
-
-ul.top-nav li.top-nav-right {
-    list-style: none;
-    float: right;
 }
 
 ul.top-nav li a {
     display: block;
     text-decoration: none;
-    min-height: 16px;
-    text-align: center;
-    padding: 14px;
+    padding: 14px 16px;
     text-transform: uppercase;
-    color: #FFFFFF;
-    /* color: #FFFFFF; */
-    background-color: #18BEFF;
-    /* background-color: #232F3E; */
+    font-size: 0.75em;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    transition: color 0.2s ease;
+    cursor: pointer;
 }
 
 ul.top-nav li a:hover {
-    background-color: #FF9901;
-    /* background-color: #FF9900; */
-    color: #00A4E4;
-    /* color: #232F3E; */
+    color: var(--accent-bright);
+}
+
+ul.top-nav li.sep a {
+    color: rgba(255, 255, 255, 0.1);
+    cursor: default;
+}
+
+ul.top-nav li.top-nav-right {
+    margin-left: auto;
+}
+
+ul.top-nav li.top-nav-right + li.top-nav-right {
+    margin-left: 0;
 }
 
 ul.top-nav li.dropdownIcon {
     display: none;
+    margin-left: auto;
 }
 
-/* ########## Mobile ######## */
+/* ########## Mobile Nav ######## */
 
 @media screen and (max-width: 680px) {
-    ul.top-nav li:not(:nth-child(1)) {
+    nav ul {
+        flex-wrap: wrap;
+    }
+
+    ul.top-nav li:not(:first-child) {
         display: none;
     }
 
     ul.top-nav li.dropdownIcon {
         display: block;
-        float: right;
+    }
+
+    ul.top-nav.responsive {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    ul.top-nav.responsive li {
+        display: block;
+    }
+
+    ul.top-nav.responsive li a {
+        text-align: left;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    ul.top-nav.responsive li.sep {
+        display: none;
     }
 
     ul.top-nav.responsive li.dropdownIcon {
@@ -102,178 +134,371 @@ ul.top-nav li.dropdownIcon {
         right: 0;
     }
 
-    ul.top-nav.responsive li.sep {
-        display: none;
-    }
-
-    ul.top-nav.responsive {
-        position: relative;
-    }
-
-    ul.top-nav.responsive li {
-        display: inline;
-        float: none;
-    }
-
-    ul.top-nav.responsive li a {
-        display: block;
-        text-align: left;
+    ul.top-nav.responsive li.top-nav-right {
+        margin-left: 0;
     }
 }
 
-/* ############## McInfo ############## */
+/* ############## Header Image ############## */
 
-/* Float two columns side by side */
-.Infocolumn {
-    float: left;
-    width: 50%;
-  }
-  
-  /* Remove extra left and right margins, due to padding */
-  .mcInfo {margin: -5px;}
-  
-  /* Clear floats after the columns */
-  .mcInfo:after {
-    content: "";
-    display: table;
-    clear: both;
-  }
-  
-  /* Responsive columns */
-  @media screen and (max-width: 680px) {
-    .Infocolumn {
-      width: 100%;
-      display: block;
-      margin-bottom: 20px;
+.hero {
+    text-align: center;
+    padding: 24px 16px 0;
+}
+
+.hero img {
+    border-radius: 8px;
+    opacity: 0.85;
+}
+
+/* ############## Content Container ############## */
+
+.content {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px 16px;
+}
+
+/* ############## Section Labels ############## */
+
+.section-label {
+    font-size: 0.7em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+/* ############## Info Grid ############## */
+
+.mcInfo {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+@media screen and (max-width: 680px) {
+    .mcInfo {
+        grid-template-columns: 1fr;
     }
-  }
+}
 
-/* ############## mcControl ############## */
-.Controlcolumn {
-    float: left;
-    width: 33.3%;
-  }
-  
-  /* Remove extra left and right margins, due to padding */
-.mcControl {margin: -5px;}
-  
-  /* Clear floats after the columns */
-.mcControl:after {
-    content: "";
-    display: table;
-    clear: both;
+/* ############## Control Grid ############## */
+
+.mcControl {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.mcControl--two {
+    grid-template-columns: 1fr 1fr;
+}
+
+@media screen and (max-width: 680px) {
+    .mcControl {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ############# Cards ################ */
+
+.card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
+}
+
+.card:hover {
+    background-color: var(--bg-card-hover);
+    border-color: var(--border-hover);
+    box-shadow: 0 0 20px rgba(221, 97, 25, 0.08);
+}
+
+.card h3 {
+    margin: 0 0 8px 0;
+    font-size: 0.7em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent-bright);
+}
+
+.card p {
+    margin: 0;
+    font-size: 1.05em;
+    color: var(--text-primary);
+}
+
+.card .Loading {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.9em;
+}
+
+/* State-specific card borders */
+.card--ok {
+    border-color: var(--success);
+}
+
+.card--danger {
+    border-color: var(--danger);
+    opacity: 0.8;
+}
+
+/* ############# Control Card Specifics ################ */
+
+.mcControl .card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px 20px;
+}
+
+.mcControl .card h3 {
+    margin: 0;
 }
 
 .mcControl .card button {
-    padding: 5px;
-    margin: 15px;
-    color: #000000;
-    /* color: #00A4E4; */
-    /* color: #FFFFFF; */
-    font-size: 1em;
-    text-decoration: none;
-    background-color: #FF9901;
-    /* background-color: #FF9900; */
-    opacity: 0.9;
+    padding: 10px 28px;
+    font-size: 0.8em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bg-deep);
+    background-color: var(--accent-orange);
     border: none;
-    border-radius: 3px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
 .mcControl .card button:hover {
-    background-color: #FF9901;
-    /* background-color: #FF9900; */
-    opacity: 1;
-    transform: scale(1.1);
+    background-color: var(--accent-bright);
+    transform: scale(1.04);
+}
+
+.mcControl .card button:active {
+    transform: scale(0.98);
 }
 
 .mcControl .card button:focus {
-    outline: none;
-    box-shadow: none;
+    outline: 2px solid rgba(221, 97, 25, 0.5);
+    outline-offset: 2px;
+}
+
+.mcControl .card button.btn-danger {
+    background-color: var(--danger);
+    color: var(--text-primary);
+}
+
+.mcControl .card button.btn-danger:hover {
+    background-color: #c44538;
 }
 
 .mcControl .card label {
-    font-weight: bold;
-    font-size: 1.17em;
+    font-weight: 600;
+    font-size: 0.7em;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent-bright);
 }
 
-.mcControl .Controlcolumn .card select {
-    margin: 0px;
+.mcControl .card select {
+    padding: 8px 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    background-color: var(--bg-deep);
+    color: var(--text-primary);
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
+.mcControl .card select:focus {
+    outline: none;
+    border-color: var(--accent-orange);
+}
+
+.resize-row {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+/* ############# Divider ################ */
+
+.divider {
     border: none;
-    display: inline-block;
-    font-size: 1.1em;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin: 0 0 24px 0;
 }
 
-  /* Responsive columns */
-  @media screen and (max-width: 680px) {
-    .Controlcolumn {
-      width: 100%;
-      display: block;
-      margin-bottom: 20px;
-    }
-  }
+/* ############## Admin Section ############## */
 
-/* ############# Cards ################ */
-  
-  /* Style the counter cards */
-  .card {
-    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
-    padding: 5px;
-    margin: 10px;
+.admin-section {
+    margin-bottom: 24px;
+}
+
+.admin-card {
+    text-align: left;
+    padding: 24px;
+    user-select: none;
+}
+
+.admin-card h3 {
     text-align: center;
-    background-color: #18BEFF;
-    /* background-color: #232F3E; */
-    color: #FFFFFF;
-    /* color: #FFFFFF; */
-    border-radius: 5px;
-  }
+    margin-bottom: 16px;
+}
 
-  .card:hover {
-    box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
-    background-color: #00A4E4;
-    /* background-color: #161E2D; */
-    transition: 0.3s;
-  }
+.admin-input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
 
+.admin-input-row input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    background-color: var(--bg-deep);
+    color: var(--text-primary);
+    font-size: 0.9em;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.admin-input-row input::placeholder {
+    color: var(--text-muted);
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.admin-input-row input:focus {
+    outline: none;
+    border-color: var(--accent-orange);
+}
+
+.admin-input-row button {
+    padding: 10px 24px;
+    font-size: 0.8em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bg-deep);
+    background-color: var(--accent-orange);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.admin-input-row button:hover {
+    background-color: var(--accent-bright);
+}
+
+.admin-list {
+    list-style: none;
+    user-select: none;
+}
+
+.admin-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.9em;
+    color: var(--text-secondary);
+}
+
+.admin-list li:last-child {
+    border-bottom: none;
+}
+
+.admin-list .btn-remove {
+    padding: 4px 12px;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    background-color: var(--danger);
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.admin-list .btn-remove:hover {
+    background-color: #c44538;
+}
+
+.admin-empty {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.85em;
+    padding: 12px 0;
+}
 
 /* ############## Footer ############### */
+
 .footer {
     position: fixed;
     left: 0;
     bottom: 0;
     width: 100%;
-    background-color: #00A4E4;
-    /* background-color: #232F3E; */
-    color: #FF9901;
-    /* color: #FF9900; */
+    background-color: var(--bg-card);
+    border-top: 1px solid var(--border-subtle);
     text-align: center;
 }
 
-/* ################ Alerts ################### */
- /* The alert message box */
- .alert {
-    padding: 20px;
-    background-color: #FF9901;
-    /* background-color: #FF9900; */
-    color: #00A4E4;
-    /* color: #FFFFFF; */
-    margin-bottom: 15px;
-  }
-  
-  /* The close button */
-  .closebtn {
-    margin-left: 15px;
-    color: #FFFFFF;
-    /* color: #FFFFFF; */
-    font-weight: bold;
-    float: right;
-    font-size: 22px;
-    line-height: 20px;
-    cursor: pointer;
-    transition: 0.3s;
-  }
-  
-  /* When moving the mouse over the close button */
-  .closebtn:hover {
-    color: black;
-  } 
+.footer p {
+    margin: 10px 0;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+}
 
+/* ################ Alerts ################### */
+
+.alert {
+    padding: 14px 20px;
+    background-color: var(--bg-card);
+    border: 1px solid var(--accent-orange);
+    border-radius: 8px;
+    color: var(--accent-bright);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.alert .alertmsg {
+    margin: 0;
+    font-size: 0.9em;
+}
+
+.closebtn {
+    color: var(--text-muted);
+    font-weight: bold;
+    font-size: 18px;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    margin-left: 16px;
+    line-height: 1;
+}
+
+.closebtn:hover {
+    color: var(--text-primary);
+}

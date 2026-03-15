@@ -38,26 +38,47 @@ async function show(data) {
     document.getElementById('mcInfoIP').innerHTML = instance["PublicIpAddress"];
     document.getElementById('mcInfoType').innerHTML = instance["InstanceType"];
 
+    // Update power button based on state
+    var powerBtn = document.getElementById('powerButton');
+    if (powerBtn) {
+      if (instance["State"] === "running") {
+        powerBtn.textContent = 'Stop';
+        powerBtn.className = 'btn-danger';
+      } else {
+        powerBtn.textContent = 'Start';
+        powerBtn.className = '';
+      }
+    }
+
     //Check if Domain exists and then lookup IP to see if it matches IP on console.
-    //Show card as red if this doesn't match
+    //Show card border as red/green based on DNS match
+    var dnsCard = document.getElementById('mcInfoDNS').parentNode;
     if (data[1]["Instances"][0]["DomainName"] != "") {
       var DomainName2IP = await dnsLookup(data[1]["Instances"][0]["DomainName"]);
       if (DomainName2IP != data[1]["Instances"][0]["PublicIpAddress"]) {
-        var dnsCard = document.getElementById('mcInfoDNS').parentNode;
-        dnsCard.style.backgroundColor = '#FF0000';
-        dnsCard.style.opacity = '0.7';
+        dnsCard.classList.add('card--danger');
+        dnsCard.classList.remove('card--ok');
       }
       else {
-        var dnsCard = document.getElementById('mcInfoDNS').parentNode;
-        dnsCard.style.backgroundColor = '#18BEFF';
-        dnsCard.style.opacity = '1';
+        dnsCard.classList.add('card--ok');
+        dnsCard.classList.remove('card--danger');
       }
     }
     else {
       document.getElementById('mcInfoDNS').innerHTML = "Loading...";
-      var dnsCard = document.getElementById('mcInfoDNS').parentNode;
-      dnsCard.style.backgroundColor = '#FF0000';
-      dnsCard.style.opacity = '0.7';
+      dnsCard.classList.add('card--danger');
+      dnsCard.classList.remove('card--ok');
+    }
+
+    // Show/hide admin section based on server state
+    var adminSection = document.getElementById('adminSection');
+    if (adminSection) {
+      if (instance["State"] === "running") {
+        adminSection.style.display = 'block';
+        getAdminList();
+      } else {
+        adminSection.style.display = 'none';
+      }
     }
 }
 
@@ -138,6 +159,17 @@ async function resizeServer() {
   for (y=0; y<5; y++){
     await sleep(1000);
     mcInfo(API_URL, jwt);
+  }
+}
+
+async function toggleServer() {
+  var powerBtn = document.getElementById('powerButton');
+  if (powerBtn.textContent === 'Stop') {
+    showAlert('Stopping the Server');
+    stopServer();
+  } else {
+    showAlert('Starting the Server');
+    startServer();
   }
 }
 
@@ -266,6 +298,71 @@ async function getJwt() {
       })
       .catch(e => {console.log(e)})
   return jwt
+}
+
+//////////////////// Admin List //////////////////////////
+
+async function getAdminList() {
+  var jwt = await getJwt();
+  var url = API_URL + "adminlist/" + query_string;
+  var response = await fetch(url, {
+    method: 'get',
+    headers: new Headers({ 'Authorization': jwt })
+  });
+  var data = await response.json();
+  renderAdminList(data);
+}
+
+function renderAdminList(steamIds) {
+  var listEl = document.getElementById('adminListItems');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  if (!Array.isArray(steamIds) || steamIds.length === 0) {
+    listEl.innerHTML = '<li class="admin-empty">No admins configured</li>';
+    return;
+  }
+  steamIds.forEach(function(id) {
+    var li = document.createElement('li');
+    li.textContent = id;
+    var removeBtn = document.createElement('button');
+    removeBtn.textContent = 'Remove';
+    removeBtn.className = 'btn-remove';
+    removeBtn.onclick = function() { removeAdmin(id); };
+    li.appendChild(removeBtn);
+    listEl.appendChild(li);
+  });
+}
+
+async function addAdmin() {
+  var input = document.getElementById('steamIdInput');
+  var steamId = input.value.trim();
+  if (!steamId) return;
+  if (!/^\d{17}$/.test(steamId)) {
+    showAlert('Invalid Steam ID. Must be a 17-digit number.');
+    return;
+  }
+  var jwt = await getJwt();
+  var url = API_URL + "adminlist/" + query_string + "&action=add&steamid=" + steamId;
+  var response = await fetch(url, {
+    method: 'get',
+    headers: new Headers({ 'Authorization': jwt })
+  });
+  var data = await response.json();
+  showAlert(data[0]);
+  input.value = '';
+  getAdminList();
+}
+
+async function removeAdmin(steamId) {
+  var jwt = await getJwt();
+  var url = API_URL + "adminlist/" + query_string + "&action=remove&steamid=" + steamId;
+  var response = await fetch(url, {
+    method: 'get',
+    headers: new Headers({ 'Authorization': jwt })
+  });
+  var data = await response.json();
+  showAlert(data[0]);
+  getAdminList();
 }
 
 function logout() {
