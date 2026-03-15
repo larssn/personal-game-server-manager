@@ -1818,7 +1818,7 @@ Resources:
                   InstanceIds=[instance_id],
                   DocumentName='AWS-RunShellScript',
                   Parameters={'commands': [cmd]},
-                  TimeoutSeconds=10
+                  TimeoutSeconds=30
               )
               command_id = result['Command']['CommandId']
 

@@ -369,7 +369,8 @@ async function addAdmin() {
     headers: new Headers({ 'Authorization': jwt })
   });
   var data = await response.json();
-  showAlert(data[0]);
+  var msg = Array.isArray(data) ? data[0] : (data.errorMessage || 'Unknown error');
+  showAlert(msg);
   input.value = '';
   getAdminList();
 }
@@ -382,7 +383,8 @@ async function removeAdmin(steamId) {
     headers: new Headers({ 'Authorization': jwt })
   });
   var data = await response.json();
-  showAlert(data[0]);
+  var msg = Array.isArray(data) ? data[0] : (data.errorMessage || 'Unknown error');
+  showAlert(msg);
   getAdminList();
 }
 
