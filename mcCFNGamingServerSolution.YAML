@@ -380,8 +380,17 @@ Resources:
   mcControlApiDeployment:
     DependsOn:
       - mcApiGetInfoGetMethod
+      - mcApiGetInfoOptionsMethod
+      - mcApiStartGetMethod
+      - mcApiStartOptionsMethod
+      - mcApiStopGetMethod
+      - mcApiStopOptionsMethod
+      - mcApiResizeGetMethod
+      - mcApiResizeOptionsMethod
       - mcApiAdminListGetMethod
+      - mcApiAdminListOptionsMethod
       - mcApiBillingGetMethod
+      - mcApiBillingOptionsMethod
     Type: 'AWS::ApiGateway::Deployment'
     Properties: 
       RestApiId: !Ref mcControlApi
