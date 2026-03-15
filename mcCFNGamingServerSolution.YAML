@@ -256,8 +256,6 @@ Conditions:
     - !Equals
       - !Ref GamingUDPTrafficPortStart
       - ''
-
-Conditions:
   HasManagementDomain: !Not [!Equals [!Ref ManagementDomain, '']]
 
 Resources:
