@@ -2255,9 +2255,6 @@ Outputs:
     Description: This is the URL for the API to control your gaming server instances
     Value: !Sub https://${mcControlApi}.execute-api.${AWS::Region}.amazonaws.com/prod/
   
-  mcPublicIp:
-    Description: This is the public IP for your gaming server, you will need to run a "start" command to associate your domain name with it (if you selected one)
-    Value: !GetAtt mcEC2Instance.PublicIp
 
   mcCognitoUserPoolId:
     Description: Unique user pool ID for the people you want to be able to control your server
