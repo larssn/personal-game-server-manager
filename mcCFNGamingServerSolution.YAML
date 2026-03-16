@@ -1900,8 +1900,8 @@ Resources:
                         "Action": "ssm:SendCommand",
                         "Resource": "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*",
                         "Condition": {
-                          "StringEquals": {
-                            "ssm:resourceTag/${tagname}": "${tagvalue}"
+                          "StringLike": {
+                            "ssm:resourceTag/${tagname}": ["${tagvalue}"]
                           }
                         }
                         },
