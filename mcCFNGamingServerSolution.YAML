@@ -22,7 +22,6 @@ Metadata:
           - FrontEndVersion
           - ManagementDomain
           - ManagementCertificateArn
-          - BillingTagKey
       - Label:
           default: AWS Configuration
         Parameters:
@@ -78,9 +77,7 @@ Metadata:
         default: Custom domain for the management UI (e.g. admin.example.com). Leave blank to use the CloudFront URL.
       ManagementCertificateArn:
         default: ACM certificate ARN (must be in us-east-1) for the custom management domain
-      BillingTagKey:
-        default: Tag key used for Cost Allocation billing (auto-activated as a Cost Allocation Tag)
-              
+
 Parameters:
   GameServer:
     Description: Please enter the URL for the shell script to install the game server of your choice - we call this the game cartridge URL.  Please note this must be an uncompressed shell script to run on selected AMI (Ubuntu by default).
@@ -194,10 +191,6 @@ Parameters:
     Type: String
     Default: mcServer
     ConstraintDescription: This is a mandatory field - you must pust something in.  We recommend not changing the default value.
-  BillingTagKey:
-    Description: Tag key used for Cost Allocation in billing. This tag will be auto-activated as a Cost Allocation Tag. Defaults to the same tag used to identify your server.
-    Type: String
-    Default: mcServerFinder
   ShutdownTimeHours:
     Description: Setting a time here will automatically stop your server at the same time every day.  You adjust the rule, add rules, changes days etc. later directly in the AWS EventBridge Console.  IMPORTANT NOTE - the time must be set in GMT not your local time zone (also note therefore this time will appear to change when going from summer time to winter for relevant time zones).  Leaving blank will not set an auto server shut down rule.
     Type: String
@@ -1107,34 +1100,6 @@ Resources:
                   - 'cloudfront:CreateInvalidation'
                 Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${mcCloudFront}'
 
-  mcActivateCostTagLambdaIamRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: 'sts:AssumeRole'
-      Description: Execution role for Cost Allocation Tag activation Lambda
-      Path: /service-role/
-      Policies:
-        - PolicyName: mcActivateCostTagInline
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 'logs:CreateLogGroup'
-                  - 'logs:CreateLogStream'
-                  - 'logs:PutLogEvents'
-                Resource: 'arn:aws:logs:*:*:*'
-              - Effect: Allow
-                Action:
-                  - 'ce:UpdateCostAllocationTagsStatus'
-                Resource: '*'
-
   mcUpdateDnsLambdaIamRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -1539,43 +1504,6 @@ Resources:
         - Key: !Ref IdTagName
           Value: !Ref IdTagValue
 
-  mcActivateCostTagLambda:
-    Type: AWS::Lambda::Function
-    Properties:
-      Code:
-        ZipFile: |
-          import boto3
-          import cfnresponse
-          def lambda_handler(event, context):
-              tag_key = event['ResourceProperties']['tagKey']
-              ce = boto3.client('ce', region_name='us-east-1')
-              if event['RequestType'] in ('Create', 'Update'):
-                  try:
-                      ce.update_cost_allocation_tags_status(
-                          CostAllocationTagsStatus=[{'TagKey': tag_key, 'Status': 'Active'}]
-                      )
-                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': f'Activated cost allocation tag: {tag_key}'})
-                  except Exception as e:
-                      print(e)
-                      cfnresponse.send(event, context, cfnresponse.FAILED, {'Response': str(e)})
-              else:
-                  try:
-                      ce.update_cost_allocation_tags_status(
-                          CostAllocationTagsStatus=[{'TagKey': tag_key, 'Status': 'Inactive'}]
-                      )
-                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': f'Deactivated cost allocation tag: {tag_key}'})
-                  except Exception as e:
-                      print(e)
-                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Failed to deactivate tag on delete, ignoring.'})
-      Description: Custom resource lambda to activate Cost Allocation Tag for billing
-      Role: !GetAtt mcActivateCostTagLambdaIamRole.Arn
-      Handler: index.lambda_handler
-      Runtime: python3.8
-      Timeout: 10
-      Tags:
-        - Key: !Ref IdTagName
-          Value: !Ref IdTagValue
-
   mcStartStopLambda:
     Type: 'AWS::Lambda::Function'
     DependsOn: mcCopyLambdaFiles
@@ -1940,9 +1868,6 @@ Resources:
           ce = boto3.client('ce', region_name='us-east-1')
 
           def lambda_handler(event, context):
-              tag_key = os.environ['BILLING_TAG_KEY']
-              tag_value = event['mcTagValue']
-
               today = datetime.utcnow()
               first_of_month = today.replace(day=1).strftime('%Y-%m-%d')
               today_str = today.strftime('%Y-%m-%d')
@@ -1950,13 +1875,10 @@ Resources:
               if first_of_month == today_str:
                   return ['Success', {'currentCost': '0.00', 'forecastCost': 'N/A'}]
 
-              tag_filter = {'Tags': {'Key': tag_key, 'Values': [tag_value]}}
-
               mtd = ce.get_cost_and_usage(
                   TimePeriod={'Start': first_of_month, 'End': today_str},
                   Granularity='MONTHLY',
-                  Metrics=['UnblendedCost'],
-                  Filter=tag_filter
+                  Metrics=['UnblendedCost']
               )
               current_cost = '0.00'
               for result in mtd['ResultsByTime']:
@@ -1968,8 +1890,7 @@ Resources:
                   forecast = ce.get_cost_forecast(
                       TimePeriod={'Start': today_str, 'End': next_month.strftime('%Y-%m-%d')},
                       Metric='UNBLENDED_COST',
-                      Granularity='MONTHLY',
-                      Filter=tag_filter
+                      Granularity='MONTHLY'
                   )
                   forecast_cost = forecast['Total']['Amount']
               except ce.exceptions.DataUnavailableException:
@@ -1985,9 +1906,6 @@ Resources:
       Handler: index.lambda_handler
       Runtime: python3.8
       Timeout: 10
-      Environment:
-        Variables:
-          BILLING_TAG_KEY: !Ref BillingTagKey
       Tags:
         - Key: !Ref IdTagName
           Value: !Ref IdTagValue
@@ -2243,12 +2161,6 @@ Resources:
     Properties:
       ServiceToken: !GetAtt mcgetSrcIpsLambda.Arn
       region: !Ref AWS::Region
-
-  mcActivateCostTag:
-    Type: Custom::ActivateCostTag
-    Properties:
-      ServiceToken: !GetAtt mcActivateCostTagLambda.Arn
-      tagKey: !Ref BillingTagKey
 
 Outputs:
   mcControlApiUrl:
