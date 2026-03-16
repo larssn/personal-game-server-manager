@@ -323,6 +323,8 @@ async function fetchBilling() {
 
 //////////////////// Admin List //////////////////////////
 
+var currentAdminList = [];
+
 async function getAdminList() {
   var jwt = await getJwt();
   var url = API_URL + "adminlist/" + query_string;
@@ -335,14 +337,15 @@ async function getAdminList() {
 }
 
 function renderAdminList(steamIds) {
+  currentAdminList = Array.isArray(steamIds) ? steamIds.slice() : [];
   var listEl = document.getElementById('adminListItems');
   if (!listEl) return;
   listEl.innerHTML = '';
-  if (!Array.isArray(steamIds) || steamIds.length === 0) {
+  if (currentAdminList.length === 0) {
     listEl.innerHTML = '<li class="admin-empty">No admins configured</li>';
     return;
   }
-  steamIds.forEach(function(id) {
+  currentAdminList.forEach(function(id) {
     var li = document.createElement('li');
     li.textContent = id;
     var removeBtn = document.createElement('button');
@@ -362,30 +365,53 @@ async function addAdmin() {
     showAlert('Invalid Steam ID. Must be a 17-digit number.');
     return;
   }
-  var jwt = await getJwt();
-  var url = API_URL + "adminlist/" + query_string + "&action=add&steamid=" + steamId;
-  var response = await fetch(url, {
-    method: 'get',
-    headers: new Headers({ 'Authorization': jwt })
-  });
-  var data = await response.json();
-  var msg = Array.isArray(data) ? data[0] : (data.errorMessage || 'Unknown error');
-  showAlert(msg);
+  if (currentAdminList.includes(steamId)) {
+    showAlert('Steam ID already in admin list.');
+    return;
+  }
+
+  // Optimistic UI update
   input.value = '';
-  getAdminList();
+  renderAdminList(currentAdminList.concat(steamId));
+
+  try {
+    var jwt = await getJwt();
+    var url = API_URL + "adminlist/" + query_string + "&action=add&steamid=" + steamId;
+    var response = await fetch(url, {
+      method: 'get',
+      headers: new Headers({ 'Authorization': jwt })
+    });
+    var data = await response.json();
+    var msg = Array.isArray(data) ? data[0] : (data.errorMessage || 'Unknown error');
+    showAlert(msg);
+    getAdminList();
+  } catch (e) {
+    renderAdminList(currentAdminList.filter(function(id) { return id !== steamId; }));
+    showAlert('Failed to add admin: ' + e.message);
+  }
 }
 
 async function removeAdmin(steamId) {
-  var jwt = await getJwt();
-  var url = API_URL + "adminlist/" + query_string + "&action=remove&steamid=" + steamId;
-  var response = await fetch(url, {
-    method: 'get',
-    headers: new Headers({ 'Authorization': jwt })
-  });
-  var data = await response.json();
-  var msg = Array.isArray(data) ? data[0] : (data.errorMessage || 'Unknown error');
-  showAlert(msg);
-  getAdminList();
+  var previousList = currentAdminList.slice();
+
+  // Optimistic UI update
+  renderAdminList(currentAdminList.filter(function(id) { return id !== steamId; }));
+
+  try {
+    var jwt = await getJwt();
+    var url = API_URL + "adminlist/" + query_string + "&action=remove&steamid=" + steamId;
+    var response = await fetch(url, {
+      method: 'get',
+      headers: new Headers({ 'Authorization': jwt })
+    });
+    var data = await response.json();
+    var msg = Array.isArray(data) ? data[0] : (data.errorMessage || 'Unknown error');
+    showAlert(msg);
+    getAdminList();
+  } catch (e) {
+    renderAdminList(previousList);
+    showAlert('Failed to remove admin: ' + e.message);
+  }
 }
 
 function logout() {
