@@ -73,12 +73,7 @@ async function show(data) {
     // Show/hide admin section based on server state
     var adminSection = document.getElementById('adminSection');
     if (adminSection) {
-      if (instance["State"] === "running") {
-        adminSection.style.display = 'block';
-        getAdminList();
-      } else {
-        adminSection.style.display = 'none';
-      }
+      adminSection.style.display = instance["State"] === "running" ? 'block' : 'none';
     }
 }
 
@@ -214,7 +209,7 @@ async function init() {
   await authIfNeeded();
 
   refreshData();
-  setInterval(refreshData, 5000);
+  getAdminList();
 
   fetchBilling();
 
