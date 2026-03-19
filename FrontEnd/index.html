@@ -56,8 +56,13 @@ SPDX-License-Identifier: MIT-0 -->
     <div class="mcInfo">
       <div class="card">
         <h3>DNS</h3>
-        <p class="Loading">Loading...</p>
-        <p id="mcInfoDNS"></p>
+        <div class="copyable-value">
+          <p class="Loading">Loading...</p>
+          <p id="mcInfoDNS"></p>
+          <button class="btn-copy" style="display:none;" onclick="copyToClipboard('mcInfoDNS', this, 2456)" title="Copy DNS">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
       </div>
       <div class="card">
         <h3>State</h3>
@@ -66,8 +71,13 @@ SPDX-License-Identifier: MIT-0 -->
       </div>
       <div class="card">
         <h3>IP</h3>
-        <p class="Loading">Loading...</p>
-        <p id="mcInfoIP"></p>
+        <div class="copyable-value">
+          <p class="Loading">Loading...</p>
+          <p id="mcInfoIP"></p>
+          <button class="btn-copy" style="display:none;" onclick="copyToClipboard('mcInfoIP', this, 2456)" title="Copy IP">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
       </div>
       <div class="card">
         <h3>Type</h3>
@@ -100,7 +110,7 @@ SPDX-License-Identifier: MIT-0 -->
 
     <hr class="divider">
 
-    <div class="admin-section" id="adminSection" style="display:none;">
+    <div class="admin-section" id="adminSection">
       <p class="section-label">Admin List</p>
       <div class="card admin-card">
         <h3>Steam IDs</h3>
@@ -112,7 +122,7 @@ SPDX-License-Identifier: MIT-0 -->
       </div>
     </div>
 
-    <div class="alert" style="display:none;">
+    <div class="alert">
       <p class="alertmsg" style="display:inline;">Doing the things you asked.</p>
       <span class="closebtn" onclick="this.parentElement.style.display='none';">&times;</span>
     </div>

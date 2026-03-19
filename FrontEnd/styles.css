@@ -291,6 +291,38 @@ ul.top-nav li.nav-billing:hover {
     color: var(--text-primary);
 }
 
+.copyable-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.copyable-value p {
+    display: inline-block;
+}
+
+.btn-copy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.btn-copy:hover {
+    color: var(--accent-bright);
+    border-color: var(--border-hover);
+}
+
+.btn-copy.copied {
+    color: var(--success);
+}
+
 .card .Loading {
     color: var(--text-muted);
     font-style: italic;
