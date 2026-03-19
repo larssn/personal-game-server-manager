@@ -46,11 +46,12 @@ services:
       - AUTO_UPDATE=1
       - AUTO_UPDATE_SCHEDULE="0 1 * * *"
       - AUTO_BACKUP=1
-      - AUTO_BACKUP_SCHEDULE="*/15 * * * *"
+      - AUTO_BACKUP_SCHEDULE="0 */2 * * *"
       - AUTO_BACKUP_REMOVE_OLD=1
       - AUTO_BACKUP_DAYS_TO_LIVE=3
       - AUTO_BACKUP_ON_UPDATE=1
       - AUTO_BACKUP_ON_SHUTDOWN=1
+      - AUTO_BACKUP_PAUSE_WITH_NO_PLAYERS=1
     volumes:
       - ./valheim/saves:/home/steam/.config/unity3d/IronGate/Valheim
       - ./valheim/server:/home/steam/valheim

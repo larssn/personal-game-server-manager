@@ -147,7 +147,7 @@ Parameters:
   LatestAMIIDx86:
     Description: Defaults to the latest Ubuntu AMI ID.  You can replace this if you would like to use a different AMI / Operating System.
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: /aws/service/canonical/ubuntu/server/20.04/stable/current/amd64/hvm/ebs-gp2/ami-id
+    Default: /aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id
   GamingTCPTrafficPortStart:
     Description: Enter port number for your server ingress security group.  This will open your gaming server to TCP traffic to a range of ports with this as the lower boundary.
     Type: String
