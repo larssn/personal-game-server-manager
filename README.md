@@ -6,6 +6,32 @@ In the below blog post we will show you how to achieve both a low cost and high 
 
 More details and instructions on this solution can be found on the AWS Gametech blog here: https://aws.amazon.com/blogs/gametech//hosting-your-own-dedicated-valheim-server-in-the-cloud/
 
+## Changes in this fork
+
+This fork has diverged meaningfully from `aws-samples/personal-game-server-manager`. Highlights:
+
+**Web UI**
+- Dark theme redesign focused on Valheim.
+- In-browser admin list management (add/remove Steam IDs from `adminlist.txt` via SSM Run Command).
+- Billing panel showing account-wide AWS costs via Cost Explorer.
+- Copy-to-clipboard buttons for DNS and IP values.
+- Custom management domain support (CloudFront + ACM), with CORS locked to the configured domain.
+
+**CI/CD**
+- GitHub Actions workflow deploys frontend and Lambda changes on every push to `main`, authenticating via OIDC — no long-lived AWS credentials.
+- The old `FrontEndVersion` stack parameter is gone. The `mcCopy*` custom resources now run only once at initial stack create (bootstrap), then CI/CD owns updates.
+
+**CloudFormation fixes and hardening**
+- Lambda bucket no longer gets emptied on stack updates (fixed a custom-resource fall-through bug).
+- Stable `PhysicalResourceId` on the S3 copy custom resource so CloudFormation tracks it correctly across updates.
+- All cost-generating resources tagged with `mcServerFinder`.
+- Default AMI upgraded to Ubuntu 22.04; AWS Backup frequency reduced.
+- Removed the `PublicIp` stack output that failed when the instance was stopped.
+- Resize Lambda validates input instead of trusting the caller.
+
+**Operational**
+- Admin list Lambda extracted into its own file with parallel fetching, optimistic UI updates, and proper SSM timeout/error handling.
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.

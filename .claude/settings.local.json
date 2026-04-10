@@ -3,7 +3,13 @@
     "allow": [
       "WebFetch(domain:www.valheimgame.com)",
       "WebSearch",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(git -C d:/personal-game-server-manager log --oneline -5)",
+      "Bash(grep -E \"^  [a-zA-Z0-9]+:\\\\s*$|Type:\\\\s|Tags:\\\\s\" \"d:/personal-game-server-manager/mcCFNGamingServerSolution.YAML\")",
+      "Bash(xargs grep:*)",
+      "WebFetch(domain:developer.valvesoftware.com)",
+      "WebFetch(domain:valheim.fandom.com)",
+      "Bash(find /d/personal-game-server-manager -type f \\\\\\(-name *.jsx -o -name *.tsx -o -name *.vue -o -name *.svelte -o -name *.ts \\\\\\))"
     ]
   }
 }
