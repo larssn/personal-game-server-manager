@@ -1,0 +1,118 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'FrontEnd/**'
+      - 'Lambda/**'
+      - '.github/workflows/deploy.yml'
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      lambda: ${{ steps.filter.outputs.lambda }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36  # v3.0.2
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'FrontEnd/**'
+            lambda:
+              - 'Lambda/**'
+
+  resolve-targets:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.lambda == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      bucket: ${{ steps.outputs.outputs.bucket }}
+      distribution: ${{ steps.outputs.outputs.distribution }}
+      start_stop_lambda: ${{ steps.outputs.outputs.start_stop_lambda }}
+      update_dns_lambda: ${{ steps.outputs.outputs.update_dns_lambda }}
+      admin_list_lambda: ${{ steps.outputs.outputs.admin_list_lambda }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Read stack outputs
+        id: outputs
+        run: |
+          set -euo pipefail
+          outputs=$(aws cloudformation describe-stacks \
+            --stack-name "${{ vars.AWS_STACK_NAME }}" \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+          get() { echo "$outputs" | jq -r ".[] | select(.OutputKey==\"$1\") | .OutputValue"; }
+          echo "bucket=$(get mcFrontEndBucketName)" >> "$GITHUB_OUTPUT"
+          echo "distribution=$(get mcCloudFrontDistributionId)" >> "$GITHUB_OUTPUT"
+          echo "start_stop_lambda=$(get mcStartStopLambdaName)" >> "$GITHUB_OUTPUT"
+          echo "update_dns_lambda=$(get mcUpdateDnsLambdaName)" >> "$GITHUB_OUTPUT"
+          echo "admin_list_lambda=$(get mcAdminListLambdaName)" >> "$GITHUB_OUTPUT"
+
+  deploy-frontend:
+    needs: [changes, resolve-targets]
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Sync FrontEnd to S3
+        run: |
+          aws s3 sync FrontEnd/ "s3://${{ needs.resolve-targets.outputs.bucket }}/" \
+            --exclude "js/config.js" \
+            --exclude "README.md" \
+            --delete
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ needs.resolve-targets.outputs.distribution }}" \
+            --paths "/*"
+
+  deploy-lambdas:
+    needs: [changes, resolve-targets]
+    if: needs.changes.outputs.lambda == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Package and publish Lambda functions
+        run: |
+          set -euo pipefail
+          pkg() {
+            local src=$1 fn=$2
+            local dir
+            dir=$(mktemp -d)
+            cp "$src" "$dir/lambda_function.py"
+            (cd "$dir" && zip -q pkg.zip lambda_function.py)
+            aws lambda update-function-code \
+              --function-name "$fn" \
+              --zip-file "fileb://$dir/pkg.zip" >/dev/null
+            echo "Updated $fn from $src"
+          }
+          pkg Lambda/gaming_server_start_stop-v1_0.py "${{ needs.resolve-targets.outputs.start_stop_lambda }}"
+          pkg Lambda/mcUpdateDNS-v1_0.py             "${{ needs.resolve-targets.outputs.update_dns_lambda }}"
+          pkg Lambda/admin_list-v1_0.py              "${{ needs.resolve-targets.outputs.admin_list_lambda }}"

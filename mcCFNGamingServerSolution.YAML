@@ -19,9 +19,9 @@ Metadata:
           - GamingUDPTrafficPortStart
           - GamingUDPTrafficPortEnd
           - GitHubRepo
-          - FrontEndVersion
           - ManagementDomain
           - ManagementCertificateArn
+          - CreateGitHubOidcProvider
       - Label:
           default: AWS Configuration
         Parameters:
@@ -71,12 +71,12 @@ Metadata:
         default: End of the port range that should be accessible from the internet for UDP traffic.
       GitHubRepo:
         default: GitHub repository in owner/repo format (e.g. aws-samples/personal-game-server-manager)
-      FrontEndVersion:
-        default: Bump this value to pull fresh frontend files from GitHub on stack update
       ManagementDomain:
         default: Custom domain for the management UI (e.g. admin.example.com). Leave blank to use the CloudFront URL.
       ManagementCertificateArn:
         default: ACM certificate ARN (must be in us-east-1) for the custom management domain
+      CreateGitHubOidcProvider:
+        default: Create the GitHub Actions OIDC provider in this account (set to no if one already exists)
 
 Parameters:
   GameServer:
@@ -91,10 +91,13 @@ Parameters:
     Default: aws-samples/personal-game-server-manager
     AllowedPattern: '[a-zA-Z0-9\.\-\_]+\/[a-zA-Z0-9\.\-\_]+'
     ConstraintDescription: 'Must be in owner/repo format (e.g. aws-samples/personal-game-server-manager)'
-  FrontEndVersion:
-    Description: Bump this value to pull fresh frontend and lambda files from GitHub on stack update.
+  CreateGitHubOidcProvider:
+    Description: Create a GitHub Actions OIDC provider (token.actions.githubusercontent.com) in this AWS account. Set to 'no' if your account already has one (OIDC providers are account-global and duplicate create will fail).
     Type: String
-    Default: '1'
+    Default: 'yes'
+    AllowedValues:
+      - 'yes'
+      - 'no'
   ManagementDomain:
     Description: Custom domain for the management UI (e.g. admin.example.com). Leave blank to use the CloudFront URL.
     Type: String
@@ -257,6 +260,7 @@ Conditions:
       - !Ref GamingUDPTrafficPortStart
       - ''
   HasManagementDomain: !Not [!Equals [!Ref ManagementDomain, '']]
+  ShouldCreateOidc: !Equals [!Ref CreateGitHubOidcProvider, 'yes']
 
 Resources:
   mcEC2Instance:
@@ -1072,34 +1076,6 @@ Resources:
                     - bucket: !GetAtt mcLoggingBucket.Arn
           PolicyName: mcCustomResourceInline
 
-  mcInvalidateCacheLambdaIamRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: 'sts:AssumeRole'
-      Description: Execution role for CloudFront cache invalidation Lambda
-      Path: /service-role/
-      Policies:
-        - PolicyName: mcInvalidateCacheInline
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 'logs:CreateLogGroup'
-                  - 'logs:CreateLogStream'
-                  - 'logs:PutLogEvents'
-                Resource: 'arn:aws:logs:*:*:*'
-              - Effect: Allow
-                Action:
-                  - 'cloudfront:CreateInvalidation'
-                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${mcCloudFront}'
-
   mcUpdateDnsLambdaIamRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -1462,41 +1438,6 @@ Resources:
                 cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Update or Delete action not Supported.'})         
       Description: Custom resource lambda to obtain source IP address range for EC2 Instance Connect in current region
       Role: !GetAtt mcCustomResourceLambdaIamRole.Arn
-      Handler: index.lambda_handler
-      Runtime: python3.8
-      Timeout: 10
-      Tags:
-        - Key: !Ref IdTagName
-          Value: !Ref IdTagValue
-
-  mcInvalidateCacheLambda:
-    Type: AWS::Lambda::Function
-    Properties:
-      Code:
-        ZipFile: |
-          import boto3
-          import time
-          import cfnresponse
-          def lambda_handler(event, context):
-              if event['RequestType'] in ('Create', 'Update'):
-                  try:
-                      cf = boto3.client('cloudfront')
-                      dist_id = event['ResourceProperties']['distributionId']
-                      cf.create_invalidation(
-                          DistributionId=dist_id,
-                          InvalidationBatch={
-                              'Paths': {'Quantity': 1, 'Items': ['/*']},
-                              'CallerReference': str(time.time())
-                          }
-                      )
-                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Cache invalidation created'})
-                  except Exception as e:
-                      print(e)
-                      cfnresponse.send(event, context, cfnresponse.FAILED, {'Response': 'Failed to invalidate cache'})
-              else:
-                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Response': 'Delete - no action needed'})
-      Description: Custom resource lambda to invalidate CloudFront cache on stack update
-      Role: !GetAtt mcInvalidateCacheLambdaIamRole.Arn
       Handler: index.lambda_handler
       Runtime: python3.8
       Timeout: 10
@@ -2030,7 +1971,6 @@ Resources:
     Properties:
       ServiceToken: !GetAtt mcCopyToS3Lambda.Arn
       targetS3Bucket: !Ref mcS3Bucket
-      version: !Ref FrontEndVersion
       sourceUrls:
         - url: !Sub 'https://raw.githubusercontent.com/${GitHubRepo}/main/FrontEnd/styles.css'
           content-type: text/css
@@ -2055,7 +1995,6 @@ Resources:
     Properties:
       ServiceToken: !GetAtt mcCopyToS3Lambda.Arn
       targetS3Bucket: !Ref mcLambdaSourceFilesS3
-      version: !Ref FrontEndVersion
       sourceUrls:
         - url: !Sub 'https://raw.githubusercontent.com/${GitHubRepo}/main/Lambda/mcUpdateDNS-v1_0.py'
           content-type: application/zip
@@ -2087,21 +2026,79 @@ Resources:
       idtagvalue: !Ref IdTagValue
       stackname: !Ref AWS::StackName
       coguserpool: !Ref mcCognitoUserPool
-      version: !Ref FrontEndVersion
 
-  mcInvalidateCache:
-    Type: Custom::InvalidateCache
-    DependsOn: mcUpdateConfig
-    Properties:
-      ServiceToken: !GetAtt mcInvalidateCacheLambda.Arn
-      distributionId: !Ref mcCloudFront
-      version: !Ref FrontEndVersion
-
-  mcGetInstanceConnectIps: 
+  mcGetInstanceConnectIps:
     Type: Custom::GetSourceIps
     Properties:
       ServiceToken: !GetAtt mcgetSrcIpsLambda.Arn
       region: !Ref AWS::Region
+
+  mcGitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateOidc
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
+
+  mcGitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Role assumed by GitHub Actions via OIDC to deploy frontend and Lambda code
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - ShouldCreateOidc
+                - !Ref mcGitHubOidcProvider
+                - !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepo}:ref:refs/heads/main
+      Policies:
+        - PolicyName: mcGitHubDeployInline
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:GetObject
+                Resource: !Sub arn:aws:s3:::${mcS3Bucket}/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub arn:aws:s3:::${mcS3Bucket}
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                Resource: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${mcCloudFront}
+              - Effect: Allow
+                Action:
+                  - lambda:UpdateFunctionCode
+                Resource:
+                  - !GetAtt mcStartStopLambda.Arn
+                  - !GetAtt mcUpdateDnsLambda.Arn
+                  - !GetAtt mcAdminListLambda.Arn
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                Resource: !Ref AWS::StackId
+      Tags:
+        - Key: !Ref IdTagName
+          Value: !Ref IdTagValue
 
 Outputs:
   mcControlApiUrl:
@@ -2136,4 +2133,27 @@ Outputs:
   mcCognitoClientID:
     Description: The clientID for the Cognito user pool
     Value: !Ref mcCognitoAppClient
-    
+
+  mcFrontEndBucketName:
+    Description: S3 bucket name the GitHub Actions workflow syncs frontend files into
+    Value: !Ref mcS3Bucket
+
+  mcCloudFrontDistributionId:
+    Description: CloudFront distribution ID the GitHub Actions workflow invalidates
+    Value: !Ref mcCloudFront
+
+  mcStartStopLambdaName:
+    Description: Physical function name of the start/stop Lambda (used by CI update-function-code)
+    Value: !Ref mcStartStopLambda
+
+  mcUpdateDnsLambdaName:
+    Description: Physical function name of the DNS update Lambda (used by CI update-function-code)
+    Value: !Ref mcUpdateDnsLambda
+
+  mcAdminListLambdaName:
+    Description: Physical function name of the admin list Lambda (used by CI update-function-code)
+    Value: !Ref mcAdminListLambda
+
+  mcGitHubDeployRoleArn:
+    Description: IAM role ARN that GitHub Actions assumes via OIDC. Set this as the AWS_DEPLOY_ROLE_ARN repo secret.
+    Value: !GetAtt mcGitHubDeployRole.Arn
